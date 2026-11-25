@@ -1,0 +1,17 @@
+{
+  "name": "seo-course",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "astro dev",
+    "build": "astro build",
+    "preview": "astro preview",
+    "check": "node scripts/check-build.mjs"
+  },
+  "dependencies": {
+    "astro": "7.4.12"
+  },
+  "engines": {
+    "node": ">=22.23.4"
+  }
+}

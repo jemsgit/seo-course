@@ -1,0 +1,23 @@
+---
+import '../site.css';
+interface Props { title: string; description: string; noindex?: boolean }
+const { title, description, noindex } = Astro.props;
+const canonical = Astro.site && !noindex && new URL(Astro.url.pathname, Astro.site);
+---
+<!doctype html>
+<html lang="ru">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>{title} — SEO Практика</title>
+    <meta name="description" content={description} />
+    {canonical && <link rel="canonical" href={canonical.href} />}
+    {(noindex || !Astro.site) && <meta name="robots" content="noindex" />}
+  </head>
+  <body>
+    <a class="skip" href="#main">К содержанию</a>
+    <header><div class="wrap bar"><a class="brand" href="/">SEO <span>/</span> Практика</a><nav aria-label="Главная навигация"><a href="/#program">Программа</a></nav></div></header>
+    <main id="main"><slot /></main>
+    <footer class="wrap">SEO / Практика</footer>
+  </body>
+</html>
