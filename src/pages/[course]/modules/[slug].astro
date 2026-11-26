@@ -1,7 +1,8 @@
 ---
 import Base from '../../../layouts/Base.astro';
+import Breadcrumbs from '../../../components/Breadcrumbs.astro';
 import { courseCatalog } from '../../../courses/catalog';
-import { coursePath, lessonPath } from '../../../courses/registry';
+import { coursePath, lessonPath, modulePath } from '../../../courses/registry';
 
 export async function getStaticPaths() {
   const catalog = await courseCatalog();
@@ -19,7 +20,10 @@ const description = entries.map(({ data }) => data.title).join(' · ');
 ---
 <Base course={course} title={module.title} description={description}>
   <div class="wrap reading">
-    <nav aria-label="Хлебные крошки"><a href={coursePath(course.slug) + "#program"}>Программа</a></nav>
+    <Breadcrumbs class="breadcrumbs" items={[
+      { name: course.name, path: coursePath(course.slug) },
+      { name: module.title, path: modulePath(course.slug, module.slug) },
+    ]} />
     <h1>{module.title}</h1>
     <h2>Уроки</h2>
     <ol>{entries.map(({ data }) => <li><a href={lessonPath(course.slug, data.slug)}>{data.title}</a><p>{data.description}</p></li>)}</ol>

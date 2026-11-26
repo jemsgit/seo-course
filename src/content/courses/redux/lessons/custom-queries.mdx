@@ -47,6 +47,28 @@ getPost: builder.query<Post, number>({
 
 Результат преобразования попадёт в кэш. `transformResponse` не является runtime-валидацией: он предполагает объявленную структуру. Аналогично `transformErrorResponse` помогает привести ошибки к удобной форме.
 
+## Проверяем JSON перед записью в кэш
+
+Если сервер вернёт `{ "item": { "id": 1, "title": null } }`, аннотация `{ item: Post }` не обнаружит ошибку. Чтобы проверить ответ при выполнении запроса, подключи библиотеку схем, например `valibot` (`npm install valibot`).
+
+```ts
+import * as v from 'valibot';
+
+const postSchema = v.object({ id: v.number(), title: v.string() });
+const envelopeSchema = v.object({ item: postSchema });
+type Post = v.InferOutput<typeof postSchema>;
+type PostResponse = v.InferOutput<typeof envelopeSchema>;
+
+// Внутри endpoints
+getPost: builder.query<Post, number, PostResponse>({
+  query: id => `posts/${id}`,
+  rawResponseSchema: envelopeSchema,
+  transformResponse: response => response.item,
+})
+```
+
+`rawResponseSchema` проверяет оболочку до `transformResponse`. Если endpoint возвращает запись напрямую, можно использовать `responseSchema: postSchema` без преобразования. Для обработки сбоя схемы как обычной ошибки запроса настрой `catchSchemaFailure` и покажи в интерфейсе, что сервер прислал данные в неожиданном формате.
+
 ## Ошибки имеют разные формы
 
 У `fetchBaseQuery` HTTP-ошибка содержит числовой `status` и данные ответа. Возможны также транспортные ошибки с текстовым статусом. Не предполагай, что у любого `error` обязательно есть `message` или одинаковый JSON.
@@ -114,5 +136,6 @@ getProfile: builder.query<{ user: User; posts: Post[] }, number>({
 
 - [customizing-queries](https://redux.js.org/toolkit/rtk-query/usage/customizing-queries)
 - [fetchBaseQuery](https://redux.js.org/toolkit/rtk-query/api/fetchBaseQuery)
+- [Проверка данных схемами](https://redux.js.org/toolkit/rtk-query/usage/queries#runtime-validation-using-schemas)
 
 Самостоятельное объяснение на основе официальной документации. Источники проверены 16 ноября 2026 года.

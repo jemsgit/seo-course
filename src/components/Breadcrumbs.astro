@@ -1,0 +1,56 @@
+---
+interface Breadcrumb {
+  name: string;
+  path: string;
+}
+
+interface Props {
+  items: readonly [Breadcrumb, Breadcrumb, ...Breadcrumb[]];
+  class?: string;
+}
+
+const { items, class: className } = Astro.props;
+const site = Astro.site;
+const json = site && JSON.stringify({
+  '@context': 'https://schema.org',
+  '@type': 'BreadcrumbList',
+  itemListElement: items.map(({ name, path }, index) => ({
+    '@type': 'ListItem',
+    position: index + 1,
+    name,
+    item: new URL(path, site).href,
+  })),
+}).replaceAll('<', '\\u003c');
+---
+<nav class={className} aria-label="Хлебные крошки">
+  <ol role="list">
+    {items.map(({ name, path }, index) => (
+      <li>
+        {index > 0 && <span class="separator" aria-hidden="true">/</span>}
+        {index === items.length - 1 ? <span aria-current="page">{name}</span> : <a href={path}>{name}</a>}
+      </li>
+    ))}
+  </ol>
+</nav>
+{json && <script is:inline type="application/ld+json" set:html={json} />}
+<style>
+  ol {
+    display: flex;
+    flex-wrap: wrap;
+    gap: .2rem .65rem;
+    list-style: none;
+    margin: 0;
+    padding: 0;
+  }
+
+  li {
+    display: inline-flex;
+    gap: .65rem;
+    min-width: 0;
+    overflow-wrap: anywhere;
+  }
+
+  .separator {
+    opacity: .65;
+  }
+</style>

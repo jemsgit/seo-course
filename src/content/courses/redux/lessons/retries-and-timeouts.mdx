@@ -58,7 +58,7 @@ const withRetry = retry(async (args, api, extraOptions) => {
 }, { maxRetries: 2 });
 ```
 
-Это фрагмент настройки; `retry` и `fetchBaseQuery` импортируются как в первом примере. Для TypeScript тип аргумента можно уточнить через `Parameters<typeof rawBaseQuery>[0]`. Полная реализация учебного транспорта лежит в `src/components/advanced.ts` проекта.
+Импортируй `retry` и `fetchBaseQuery` как в первом примере. Для TypeScript тип аргумента можно уточнить через `Parameters<typeof rawBaseQuery>[0]`. Учебный транспорт находится в `src/courses/redux/components/advanced.ts`.
 
 Восстановление сессии после 401 — отдельная задача. `retry.fail` не выполняет refresh токена. Для ошибки валидации также обычно нужна правка ввода, а не повтор того же запроса.
 

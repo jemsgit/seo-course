@@ -1,6 +1,7 @@
 ---
 import { render } from 'astro:content';
 import Base from '../../layouts/Base.astro';
+import Breadcrumbs from '../../components/Breadcrumbs.astro';
 import { type CourseEntry, type LessonEntry } from '../catalog';
 import { coursePath, lessonPath, modulePath } from '../registry';
 
@@ -12,31 +13,17 @@ const prev = index > 0 ? lessons[index - 1] : undefined;
 const next = lessons[index + 1];
 const { data } = lesson;
 const module = modules.find(({ slug }) => slug === data.module)!;
-const breadcrumbs = [
-  { name: course.name, path: coursePath(course.slug) },
-  ...(course.modulePages ? [{ name: module.title, path: modulePath(course.slug, module.slug) }] : []),
-];
-const breadcrumbJson = Astro.site && JSON.stringify({
-  '@context': 'https://schema.org',
-  '@type': 'BreadcrumbList',
-  itemListElement: [...breadcrumbs, { name: data.title, path: lessonPath(course.slug, data.slug) }]
-    .map(({ name, path }, index) => ({
-      '@type': 'ListItem',
-      position: index + 1,
-      name,
-      item: new URL(path, Astro.site).href,
-    })),
-}).replaceAll('<', '\\u003c');
 const { Content, headings } = await render(lesson);
 const date = data.checked && new Intl.DateTimeFormat('ru', { dateStyle: 'long', timeZone: 'UTC' }).format(new Date(data.checked));
 ---
 <Base course={course} title={data.title} description={data.description}>
-  {breadcrumbJson && <script is:inline type="application/ld+json" set:html={breadcrumbJson} />}
   <div class="wrap lesson-layout">
     <article class="reading">
-      <nav class="breadcrumbs" aria-label="Хлебные крошки">
-        {breadcrumbs.map(({ name, path }) => <a href={path}>{name}</a>)}
-      </nav>
+      <Breadcrumbs class="breadcrumbs" items={[
+        { name: course.name, path: coursePath(course.slug) },
+        ...(course.modulePages ? [{ name: module.title, path: modulePath(course.slug, module.slug) }] : []),
+        { name: data.title, path: lessonPath(course.slug, data.slug) },
+      ]} />
       <h1>{data.title}</h1>
       <p class="intro">{data.description}</p>
       <div class="prose"><Content /></div>
