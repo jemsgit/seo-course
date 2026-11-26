@@ -1,0 +1,11 @@
+---
+import Base from './layouts/Base.astro';
+import { type CourseEntry } from '../catalog';
+import { lessonPath } from '../registry';
+
+interface Props { entry: CourseEntry }
+const { course, lessons, modules } = Astro.props.entry;
+const first = lessons[0]?.data;
+const demo = lessons.find(({ data }) => data.slug === 'data-flow')?.data;
+---
+<Base title={course.title} description={course.description}><main id="main" class="home"><span class="eyebrow">Понять. Попробовать. Применить.</span><h1>Redux становится понятнее,<br/>когда видишь его в работе.</h1><p class="lead">Учебник на русском с интерактивными примерами. Разбираемся в Redux Toolkit и RTK Query — от первого действия до управления кэшем.</p><div class="hero-actions">{first && <a class="cta" href={lessonPath(course.slug, first.slug)}>Начать обучение →</a>}{demo && <a href={lessonPath(course.slug, demo.slug)}>Сразу к живому примеру</a>}<span class="muted">{lessons.length} уроков · без регистрации</span></div><div class="learning-note"><strong>Как проходить учебник</strong><p>Читай объяснение, запускай эксперимент, затем отвечай на вопрос. Знакомство с React, JavaScript, Promise и базовым TypeScript поможет сосредоточиться на Redux.</p></div><h2 id="program">Программа учебника</h2>{modules.filter(group => group.lessons.length).map((group, index) => <section class="course-group"><span class="eyebrow">{String(index + 1).padStart(2, "0")} / {group.slug === "advanced" ? "Продвинутые темы" : group.title}</span><h3>{group.programTitle}</h3><div class="lesson-list">{group.lessons.map(({ data: lesson }) => <a class="chapter-card" href={lessonPath(course.slug, lesson.slug)}><span class="badge">{String(lesson.order).padStart(2, '0')}</span><div><h3>{lesson.title}</h3><p class="muted">{lesson.description}</p></div><span class="arrow" aria-hidden="true">↗</span></a>)}</div></section>)}<p class="muted">Примеры опираются на <a href="https://redux.js.org/">официальную документацию Redux</a>. Это независимый образовательный проект. Продвинутые темы SSR, persistence и генерации API остаются за рамками первой версии.</p></main></Base>

@@ -1,0 +1,83 @@
+---
+slug: without-hooks
+module: advanced
+order: 24
+draft: false
+title: "RTK Query без React hooks"
+description: "Ручной запуск queries через initiate, чтение кэша через select и освобождение подписок через unsubscribe."
+---
+import Quiz from '../../../../courses/redux/components/Quiz';
+import ManualQueryLab from '../../../../courses/redux/components/ManualQueryLab';
+
+# RTK Query без React hooks
+
+<div className="learning-note"><strong>После урока ты сможешь</strong><p>Создать подписку вручную, прочитать кэш и освободить подписку в нужный момент.</p></div>
+
+Перед началом: повтори [кэш и подписки](/redux/lessons/cache/). Этот урок полезен для middleware, внешних обработчиков и понимания того, что делают React hooks.
+
+## Hook — удобная оболочка
+
+RTK Query работает поверх обычного Redux store. React hook подписывается на данные и управляет жизненным циклом компонента, но сами запросы не требуют React.
+
+Без генерации hooks API можно создать через `@reduxjs/toolkit/query`. Если API уже создан через `/react`, его endpoints также доступны напрямую. Reducer и middleware всё равно должны быть подключены к store.
+
+## Создаём подписку через initiate
+
+```ts
+// api и store уже настроены, getPost принимает числовой id.
+const request = store.dispatch(api.endpoints.getPost.initiate(1));
+try {
+  const post = await request.unwrap();
+  console.log(post.title);
+} catch (error) {
+  console.log('Запрос не завершился успешно', error);
+} finally {
+  request.unsubscribe();
+}
+```
+
+Вызов `initiate(1)` создаёт thunk action. Отправка через dispatch запускает обработку и по умолчанию добавляет подписку на `getPost(1)`. Возвращённый handle позволяет дождаться результата, повторить запрос и управлять подпиской.
+
+Два вызова `initiate(1)` могут разделять запрос и данные, но каждый создаёт свою подписку. Сохрани оба handles и освободи каждый. Иначе запись будет считаться используемой даже после исчезновения потребителей твоего приложения.
+
+## Чтение не создаёт подписку
+
+```ts
+const selectPost = api.endpoints.getPost.select(1);
+const snapshot = selectPost(store.getState());
+console.log(snapshot.status, snapshot.data);
+```
+
+`select` создаёт селектор результата, а не запускает fetch. Селектор сам не наблюдает будущие изменения. Для уведомлений нужен `store.subscribe`, интеграция UI или React hook. Если самостоятельно вызвал `store.subscribe`, его функцию отписки тоже нужно вызвать при очистке.
+
+В этом учебном стенде React использует `useSyncExternalStore` только для отображения снимка Redux state. Запросы управляются напрямую, без query hooks и Provider.
+
+## Не путай три операции
+
+| Вызов | Результат |
+| --- | --- |
+| `request.unsubscribe()` | Снимает конкретную подписку; не обещает немедленно удалить данные или отменить транспорт |
+| `request.refetch()` | Запускает повторное чтение запроса |
+| `request.abort()` | Отменяет соответствующую выполняющуюся операцию; не заменяет управление всеми подписками |
+
+После снятия последней подписки действует `keepUnusedDataFor`. Если нужно только запросить данные без удержания подписки, у `initiate` есть опция `{ subscribe: false }`. Она тоже не превращает кэш в постоянное хранилище.
+
+## Эксперимент
+
+Создай подписку A, дождись ответа, затем создай B. Сними A: данные остаются используемыми. Сними B: через три секунды исчезнет запись. Обычный вызов `select`, которым стенд читает данные, не удерживает её.
+
+<ManualQueryLab client:load />
+
+## Что запомнить
+
+Когда обходишь готовый hook, ответственность за создание и очистку подписок переходит к твоему коду. Сетевой запрос, подписка на query-кэш и подписка на Redux store — связанные, но разные механизмы.
+
+## Самопроверка
+
+<Quiz question="Вызовет ли api.endpoints.getPost.select(1)(store.getState()) новый запрос?" options={['Да, если в кэше пусто', 'Нет, это чтение снимка состояния', 'Да, при каждом вызове селектора']} correct={1} explanation="select только читает query-результат. Для инициирования запроса нужен dispatch(initiate(...)) или query hook." client:load />
+
+## Официальные источники
+
+- [RTK Query без React hooks](https://redux.js.org/toolkit/rtk-query/usage/usage-without-react-hooks).
+
+Самостоятельное объяснение на основе официальной документации. Источник проверен 16 ноября 2026 года.

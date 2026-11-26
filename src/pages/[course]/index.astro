@@ -1,0 +1,16 @@
+---
+import { courseCatalog } from '../../courses/catalog';
+import SeoProgram from '../../courses/seo/Program.astro';
+import ReduxProgram from '../../courses/redux/Program.astro';
+
+export async function getStaticPaths() {
+  return (await courseCatalog()).map((entry) => ({
+    params: { course: entry.course.slug },
+    props: { entry },
+  }));
+}
+
+const { entry } = Astro.props;
+const Program = entry.course.presentation === 'redux' ? ReduxProgram : SeoProgram;
+---
+<Program entry={entry} />

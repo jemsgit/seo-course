@@ -1,14 +1,19 @@
 import type { APIRoute } from 'astro';
-import { lessonPath, modulePath, publishedLessons } from '../course';
+import { courseCatalog } from '../courses/catalog';
+import { coursePath, lessonPath, modulePath } from '../courses/registry';
 
 export const GET: APIRoute = async ({ site }) => {
-  const paths = new Set<string>();
+  const paths = ['/'];
   if (site) {
-    paths.add('/');
-    for (const { data } of await publishedLessons()) {
-      paths.add(modulePath(data.module));
-      paths.add(lessonPath(data.slug));
+    for (const { course, modules, lessons } of await courseCatalog()) {
+      paths.push(coursePath(course.slug));
+      for (const module of modules) {
+        if (course.modulePages && module.lessons.length) paths.push(modulePath(course.slug, module.slug));
+      }
+      for (const { data } of lessons) paths.push(lessonPath(course.slug, data.slug));
     }
+  } else {
+    paths.length = 0;
   }
   return new Response([
     '<?xml version="1.0" encoding="UTF-8"?>',

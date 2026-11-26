@@ -1,0 +1,90 @@
+---
+slug: rtk-query-setup
+module: rtk-query
+order: 12
+draft: false
+title: "Первый API с RTK Query"
+description: "createApi, fetchBaseQuery, API reducer и middleware: подключаем RTK Query к приложению."
+---
+import Quiz from '../../../../courses/redux/components/Quiz';
+import QueryLab from '../../../../courses/redux/components/QueryLab';
+
+# Первый API с RTK Query
+
+<div className="learning-note"><strong>После урока ты сможешь</strong><p>Подключить API slice и получить первый сгенерированный React hook.</p></div>
+
+Перед началом: пройди [предыдущий урок](/redux/lessons/listeners/).
+
+## Серверные данные требуют правил
+
+Вручную загружать данные через thunk можно, но вместе с ответом нужно управлять загрузкой, повторными запросами, подписками и устареванием. RTK Query берёт типовую работу с серверными данными на себя.
+
+API slice — определение набора endpoints. Это не отдельный Redux store. Его reducer подключается к существующему store, а middleware управляет запросами и жизнью кэша.
+
+## Определяем контракт
+
+Создай `api.ts`. Этот пример предполагает HTTP-сервер по `/api/`; ниже на странице стенд работает без сервера через собственный учебный `baseQuery`.
+
+```ts
+import { createApi, fetchBaseQuery } from '@reduxjs/toolkit/query/react';
+export type Post = { id: number; title: string };
+export const api = createApi({
+  reducerPath: 'api',
+  baseQuery: fetchBaseQuery({ baseUrl: '/api/' }),
+  endpoints: builder => ({
+    getPost: builder.query<Post, number>({
+      query: id => `posts/${id}`,
+    }),
+  }),
+});
+export const { useGetPostQuery } = api;
+```
+
+`Post` — тип результата, `number` — тип аргумента. TypeScript не проверяет реальный JSON сервера во время выполнения: если контракт ненадёжен, нужна отдельная валидация.
+
+Импорт из `/react` включает генерацию React hooks. Endpoint `getPost` создаёт `useGetPostQuery`. Для запроса без аргумента укажи `void` вторым generic-параметром.
+
+## Подключаем обе части
+
+```ts
+import { configureStore } from '@reduxjs/toolkit';
+import { api } from './api';
+export const store = configureStore({
+  reducer: { [api.reducerPath]: api.reducer },
+  middleware: getDefault => getDefault().concat(api.middleware),
+});
+```
+
+Если в store уже есть обычные slices, сохрани их в объекте `reducer`. Не заменяй стандартные middleware массивом из одного `api.middleware`. Подключи `Provider`, как в уроке 4.
+
+```tsx
+function PostTitle() {
+  const { data, isLoading, isError } = useGetPostQuery(1);
+  if (isLoading) return <p>Загружаем…</p>;
+  if (isError) return <p>Не удалось загрузить</p>;
+  return <h3>{data?.title}</h3>;
+}
+```
+
+## Эксперимент
+
+Посмотри на начальную загрузку компонента A. Внизу появится `getPost(1)` и результат запроса. Второй компонент с тем же аргументом использует общую запись.
+
+## Что запомнить
+
+Нужны определение API, подключение reducer, подключение middleware и Provider для React. Обычно связанные endpoints размещают в одном API slice на базовый URL, чтобы они могли взаимодействовать через tags.
+
+## Лаборатория
+
+<QueryLab client:load />
+
+## Самопроверка
+
+<Quiz {...{"question": "Что нужно добавить в существующий Redux store для RTK Query?", "options": ["Только reducer", "Только middleware", "И reducer API, и middleware API"], "correct": 2, "explanation": "Reducer хранит состояние запросов, middleware управляет запросами, подписками и кэшем."}} client:load />
+
+## Официальные источники
+
+- [overview](https://redux.js.org/toolkit/rtk-query/overview)
+- [part-7-rtk-query-basics](https://redux.js.org/tutorials/essentials/part-7-rtk-query-basics)
+
+Самостоятельное объяснение на основе официальной документации. Источники проверены 16 ноября 2026 года.

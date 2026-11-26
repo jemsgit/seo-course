@@ -1,0 +1,104 @@
+---
+slug: async-thunks
+module: toolkit
+order: 10
+draft: false
+title: "Асинхронность и createAsyncThunk"
+description: "Middleware, жизненный цикл async thunk, ошибки, unwrap и отмена запросов."
+---
+import Quiz from '../../../../courses/redux/components/Quiz';
+import TasksLab from '../../../../courses/redux/components/TasksLab';
+
+# Асинхронность и createAsyncThunk
+
+<div className="learning-note"><strong>После урока ты сможешь</strong><p>Отделять побочные эффекты от reducers и обрабатывать pending, fulfilled и rejected.</p></div>
+
+Перед началом: пройди [предыдущий урок](/redux/lessons/normalization/).
+
+## Reducer не выполняет запрос
+
+Reducer должен синхронно вычислить состояние. Запросы и ожидание выполняются вне него. Thunk middleware позволяет передать в dispatch функцию, которая получает `dispatch` и `getState`. В `configureStore` эта возможность включена по умолчанию.
+
+`createAsyncThunk` оборачивает асинхронную операцию и отправляет действия её жизненного цикла. Он не создаёт reducer состояния загрузки автоматически.
+
+```ts
+import { createAsyncThunk } from '@reduxjs/toolkit';
+type Task = { id: string; title: string; done: boolean };
+export const loadTasks = createAsyncThunk('tasks/load', async (_, { signal }) => {
+  const response = await fetch('/api/tasks', { signal });
+  if (!response.ok) throw new Error(`HTTP ${response.status}`);
+  return await response.json() as Task[];
+});
+```
+
+Путь `/api/tasks` предполагает твой сервер. В стенде вместо HTTP используется задержка в памяти, чтобы всё работало без внешнего сервиса.
+
+## Три исхода операции
+
+В `extraReducers` добавь обработчики. Пример предполагает состояние `{ items: Task[], status: string, error: string | null }`:
+
+```ts
+extraReducers: builder => builder
+  .addCase(loadTasks.pending, state => {
+    state.status = 'pending'; state.error = null;
+  })
+  .addCase(loadTasks.fulfilled, (state, action) => {
+    state.status = 'fulfilled'; state.items = action.payload;
+  })
+  .addCase(loadTasks.rejected, (state, action) => {
+    state.status = 'rejected'; state.error = action.error.message ?? 'Ошибка';
+  })
+```
+
+Для ожидаемой серверной ошибки с собственными данными можно использовать `rejectWithValue` и читать `action.payload` в rejected. Для нескольких одновременных операций одного `status` иногда недостаточно: нужно учитывать `requestId`, аргументы и правило принятия результата.
+
+## Отмена и unwrap
+
+```ts
+const request = store.dispatch(loadTasks());
+// При необходимости:
+request.abort();
+try {
+  const tasks = await request.unwrap();
+} catch (error) {
+  // Обработка ошибки или отмены в вызывающем коде.
+}
+```
+
+Обычный результат `dispatch(loadTasks())` разрешается финальным action, даже при ошибке операции. `unwrap()` возвращает payload успешного результата или выбрасывает ошибку. `signal` нужно передать в fetch, чтобы отмена дошла до транспорта.
+
+## Ответ пришёл после завершения сессии
+
+Запусти сохранение в лаборатории и сразу нажми «Завершить сессию». Статус вернётся в `idle` и останется таким, даже когда старый запрос завершится. Если за это время запустить новое сохранение, его статус останется `pending` до собственного ответа.
+
+В лаборатории `saveTasks.pending` записывает `action.meta.requestId` в `currentRequestId`. При завершении сессии slice сбрасывается, и в этом поле снова `null`. Обработчики `fulfilled` и `rejected` сначала проверяют идентификатор. Вот обработчик успешного ответа из лаборатории:
+
+```ts
+.addCase(saveTasks.fulfilled, (state, action) => {
+  if (state.currentRequestId !== action.meta.requestId) return;
+  state.currentRequestId = null;
+  state.status = 'fulfilled';
+  state.message = action.payload;
+})
+```
+
+Отдельно попробуй кнопку «Отменить». Она вызывает `abort()` для текущего сохранения, и лаборатория показывает «Запрос отменён». Проверка `requestId` отвечает за другое решение: можно ли применить полученный результат к текущему состоянию. Она срабатывает и тогда, когда операция успела завершиться.
+
+## Что запомнить
+
+Thunk выполняет побочный эффект, reducer обрабатывает его события. Для стандартной загрузки и кэширования серверных данных дальше используем RTK Query.
+
+## Лаборатория
+
+<TasksLab mode="async" client:load />
+
+## Самопроверка
+
+<Quiz {...{"question": "Что делает unwrap() результата async thunk?", "options": ["Всегда возвращает action", "Возвращает успешный payload или выбрасывает ошибку", "Отменяет запрос"], "correct": 1, "explanation": "Без unwrap promise dispatch возвращает финальный action; unwrap удобен для try/catch в вызывающем коде."}} client:load />
+
+## Официальные источники
+
+- [part-5-async-logic](https://redux.js.org/tutorials/essentials/part-5-async-logic)
+- [createAsyncThunk](https://redux.js.org/toolkit/api/createAsyncThunk)
+
+Самостоятельное объяснение на основе официальной документации. Источники проверены 16 ноября 2026 года.

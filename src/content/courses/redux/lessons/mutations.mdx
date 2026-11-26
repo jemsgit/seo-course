@@ -1,0 +1,78 @@
+---
+slug: mutations
+module: rtk-query
+order: 15
+draft: false
+title: "Mutations: изменения и ошибки"
+description: "Mutation hooks, trigger, unwrap и обработка серверных ошибок без ручного состояния запроса."
+---
+import Quiz from '../../../../courses/redux/components/Quiz';
+import QueryLab from '../../../../courses/redux/components/QueryLab';
+
+# Mutations: изменения и ошибки
+
+<div className="learning-note"><strong>После урока ты сможешь</strong><p>Запускать изменение по событию и различать успешный и ошибочный ответ.</p></div>
+
+Перед началом: пройди [предыдущий урок](/redux/lessons/cache/).
+
+## Изменение запускается явно
+
+Query hook обычно подписывается при рендере. Mutation hook возвращает trigger, который ты вызываешь в обработчике события. Это удобно для создания, редактирования и удаления данных.
+
+Добавим endpoint в API урока 12:
+
+```ts
+updatePost: builder.mutation<Post, Pick<Post, 'id' | 'title'>>({
+  query: ({ id, ...body }) => ({
+    url: `posts/${id}`, method: 'PATCH', body,
+  }),
+})
+```
+
+`Post` импортируется из файла API. Generic-параметры означают результат и аргумент. Метод HTTP задаётся явно: имя `mutation` само по себе не превращает запрос в POST или PATCH.
+
+## Результат рядом с trigger
+
+```tsx
+const [updatePost, { isLoading, isError, error }] = api.useUpdatePostMutation();
+async function save(id: number, title: string) {
+  try {
+    const saved = await updatePost({ id, title }).unwrap();
+    console.log('Сохранено', saved);
+  } catch (error) {
+    console.log('Не сохранено', error);
+  }
+}
+```
+
+Этот фрагмент находится внутри React-компонента. При сохранении блокируй повторное нажатие, если параллельные изменения не предусмотрены. Покажи ошибку пользователю; одного `console.log` для готового интерфейса недостаточно.
+
+Без `unwrap()` результат trigger содержит `{ data }` или `{ error }`. С `unwrap()` успешные данные возвращаются напрямую, а ошибочный результат попадает в `catch`.
+
+## Что mutation не делает сама
+
+Успешная mutation не обязана автоматически обновлять все query-результаты с такой же сущностью. Для этого настроим tags в следующем уроке. До появления tags можно вызвать нужный refetch вручную, но такие связи быстро становятся неудобными.
+
+Отдельные экземпляры `useMutation` по умолчанию не разделяют результат одного trigger. Для специальных случаев есть `fixedCacheKey`, но он не заменяет кэш queries и правила обновления данных.
+
+## Эксперимент
+
+Измени название через «Mutation + tags». Здесь tags уже подключены, поэтому после успешной записи видно дополнительное чтение. Включи ошибку и повтори: серверное название не изменится, компонент покажет сообщение.
+
+## Что запомнить
+
+Trigger запускает изменение. Состояние mutation помогает строить UI, unwrap — обрабатывать результат в вызывающем коде. Согласование query-кэша требует явной политики.
+
+## Лаборатория
+
+<QueryLab client:load />
+
+## Самопроверка
+
+<Quiz {...{"question": "Достаточно ли назвать endpoint mutation, чтобы все queries обновились?", "options": ["Да, по совпадению id", "Нет, нужна политика обновления: например tags"], "correct": 1, "explanation": "RTK Query не угадывает связи сущностей между endpoints. Их описывает разработчик."}} client:load />
+
+## Официальные источники
+
+- [mutations](https://redux.js.org/toolkit/rtk-query/usage/mutations)
+
+Самостоятельное объяснение на основе официальной документации. Источники проверены 16 ноября 2026 года.

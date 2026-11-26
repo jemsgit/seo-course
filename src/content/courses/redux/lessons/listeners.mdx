@@ -1,0 +1,74 @@
+---
+slug: listeners
+module: toolkit
+order: 11
+draft: false
+title: "Реакции на события: listener middleware"
+description: "Побочные эффекты после actions, отмена старых listener-задач и задержка реакции."
+---
+import Quiz from '../../../../courses/redux/components/Quiz';
+import TasksLab from '../../../../courses/redux/components/TasksLab';
+
+# Реакции на события: listener middleware
+
+<div className="learning-note"><strong>После урока ты сможешь</strong><p>Запускать реакцию на событие без побочных эффектов в reducer.</p></div>
+
+Перед началом: пройди [предыдущий урок](/redux/lessons/async-thunks/).
+
+## Когда побочный эффект — реакция
+
+Thunk удобно запускать явно: «загрузи задачи». Listener подходит для другого вопроса: «что должно произойти, когда задача изменилась?» Например, показать напоминание или выполнить автосохранение после паузы.
+
+Создадим listener и подключим его перед стандартными middleware. Пример использует actions `toggled` и `reminderShown` нашего списка задач.
+
+```ts
+import { configureStore, createListenerMiddleware } from '@reduxjs/toolkit';
+import { tasksSlice } from './tasksSlice';
+const listener = createListenerMiddleware();
+listener.startListening({
+  actionCreator: tasksSlice.actions.toggled,
+  effect: async (_action, api) => {
+    api.cancelActiveListeners();
+    await api.delay(500);
+    api.dispatch(tasksSlice.actions.reminderShown());
+  },
+});
+export const store = configureStore({
+  reducer: { tasks: tasksSlice.reducer },
+  middleware: getDefault => getDefault().prepend(listener.middleware),
+});
+```
+
+`reminderShown` в reducer только записывает текст напоминания. Ожидание находится в middleware. Обычная проверка listener происходит после reducers, поэтому effect может прочитать уже обновлённое состояние.
+
+## Зачем отменять старую реакцию
+
+Представь три переключения за 300 мс. Без отмены появятся три отложенные реакции. `cancelActiveListeners()` отменяет другие активные экземпляры того же listener; `api.delay` поддерживает эту отмену. Последний вызов дождётся паузы и отправит напоминание.
+
+Это пример debounce. Отмена listener сама по себе не откатывает reducer и не отменяет любой произвольный сетевой запрос: внешний транспорт должен поддерживать сигнал или иметь отдельную обработку отмены.
+
+## У listener должна быть граница жизни
+
+В обычном приложении listener часто живёт вместе со store. В отдельном стенде мы очищаем listeners при размонтировании, чтобы отложенные задачи не продолжали работу после сброса.
+
+Не отправляй из эффекта безусловно тот же action, на который он подписан: получится цикл. Условия запуска должны быть конкретными. Для более сложных сценариев есть `predicate`, `condition`, `take` и `fork`; к ним стоит переходить при реальной необходимости.
+
+**Эксперимент:** быстро переключи задачу несколько раз и подожди. В стенде через полсекунды появится напоминание. Сброс создаёт новый store и очищает старые listeners.
+
+## Что запомнить
+
+Listeners связывают события с побочными эффектами. Reducers остаются синхронными и чистыми, а время ожидания и отмена описываются отдельно.
+
+## Лаборатория
+
+<TasksLab mode="listener" client:load />
+
+## Самопроверка
+
+<Quiz {...{"question": "Откатывает ли cancelActiveListeners уже выполненное изменение reducer?", "options": ["Да, возвращает старое состояние", "Нет, отменяет активные задачи listener"], "correct": 1, "explanation": "Изменение state уже произошло. Отмена относится к ожидающим эффектам, а не к истории reducer."}} client:load />
+
+## Официальные источники
+
+- [createListenerMiddleware](https://redux.js.org/toolkit/api/createListenerMiddleware)
+
+Самостоятельное объяснение на основе официальной документации. Источники проверены 16 ноября 2026 года.

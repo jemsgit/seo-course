@@ -1,0 +1,54 @@
+---
+import { render } from 'astro:content';
+import Base from '../../layouts/Base.astro';
+import { type CourseEntry, type LessonEntry } from '../catalog';
+import { coursePath, lessonPath, modulePath } from '../registry';
+
+interface Props { entry: CourseEntry; lesson: LessonEntry }
+const { entry, lesson } = Astro.props;
+const { course, lessons, modules } = entry;
+const index = lessons.findIndex(({ id }) => id === lesson.id);
+const prev = index > 0 ? lessons[index - 1] : undefined;
+const next = lessons[index + 1];
+const { data } = lesson;
+const module = modules.find(({ slug }) => slug === data.module)!;
+const breadcrumbs = [
+  { name: course.name, path: coursePath(course.slug) },
+  ...(course.modulePages ? [{ name: module.title, path: modulePath(course.slug, module.slug) }] : []),
+];
+const breadcrumbJson = Astro.site && JSON.stringify({
+  '@context': 'https://schema.org',
+  '@type': 'BreadcrumbList',
+  itemListElement: [...breadcrumbs, { name: data.title, path: lessonPath(course.slug, data.slug) }]
+    .map(({ name, path }, index) => ({
+      '@type': 'ListItem',
+      position: index + 1,
+      name,
+      item: new URL(path, Astro.site).href,
+    })),
+}).replaceAll('<', '\\u003c');
+const { Content, headings } = await render(lesson);
+const date = data.checked && new Intl.DateTimeFormat('ru', { dateStyle: 'long', timeZone: 'UTC' }).format(new Date(data.checked));
+---
+<Base course={course} title={data.title} description={data.description}>
+  {breadcrumbJson && <script is:inline type="application/ld+json" set:html={breadcrumbJson} />}
+  <div class="wrap lesson-layout">
+    <article class="reading">
+      <nav class="breadcrumbs" aria-label="Хлебные крошки">
+        {breadcrumbs.map(({ name, path }) => <a href={path}>{name}</a>)}
+      </nav>
+      <h1>{data.title}</h1>
+      <p class="intro">{data.description}</p>
+      <div class="prose"><Content /></div>
+      {date && <p class="checked">Источники проверены <time datetime={data.checked}>{date}</time></p>}
+      <nav class="pager" aria-label="Соседние уроки">
+        {prev && <a href={lessonPath(course.slug, prev.data.slug)}><small>Предыдущий урок</small>{prev.data.title}</a>}
+        {next && <a href={lessonPath(course.slug, next.data.slug)}><small>Следующий урок</small>{next.data.title}</a>}
+      </nav>
+    </article>
+    <aside class="contents"><nav aria-label="Оглавление урока">
+      <h2>В этом уроке</h2>
+      <ul>{headings.filter(({ depth }) => depth === 2).map(({ slug, text }) => <li><a href={`#${slug}`}>{text}</a></li>)}</ul>
+    </nav></aside>
+  </div>
+</Base>

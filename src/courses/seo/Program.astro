@@ -1,0 +1,37 @@
+---
+import Base from '../../layouts/Base.astro';
+import { type CourseEntry } from '../catalog';
+import { lessonPath, modulePath } from '../registry';
+
+interface Props { entry: CourseEntry }
+const { course, lessons, modules } = Astro.props.entry;
+const stages = [
+  ['Обнаружение', 'Робот узнаёт URL из ссылки или карты сайта.'],
+  ['Обход', 'Робот запрашивает страницу.'],
+  ['Индексирование', 'Поисковик решает, включать ли страницу в индекс.'],
+  ['Выдача', 'Поисковик подбирает страницы для запроса.'],
+];
+---
+<Base course={course} title={course.title} description={course.description}>
+  <div class="wrap hero">
+    <div>
+      <h1>{course.presentation === "seo" ? <>SEO для<br />веб-разработчиков</> : course.title}</h1>
+      <p class="intro">{course.presentation === "seo" ? "Как Google и Яндекс находят страницы и показывают их в выдаче. Разбираемся на сайте самого курса." : course.description}</p>
+      {lessons[0] && <a class="button" href={lessonPath(course.slug, lessons[0].data.slug)}>Начать первый урок</a>}
+    </div>
+    {course.presentation === "seo" && <figure class="pipeline">
+      <figcaption>Путь страницы в поиск</figcaption>
+      <ol>{stages.map(([title, description]) => <li><strong>{title}</strong><span>{description}</span></li>)}</ol>
+    </figure>}
+  </div>
+  <section class="wrap program" id="program">
+    <h2>Программа курса</h2>
+    {modules.map((module) => {
+      const entries = module.lessons;
+      return <section class="module">
+        <h3>{entries.length && course.modulePages ? <a href={modulePath(course.slug, module.slug)}>{module.title}</a> : module.title}</h3>
+        {entries.length ? <ol>{entries.map(({ data }) => <li><a href={lessonPath(course.slug, data.slug)}>{data.title}</a></li>)}</ol> : <p>Готовится</p>}
+      </section>;
+    })}
+  </section>
+</Base>

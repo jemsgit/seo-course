@@ -1,0 +1,18 @@
+---
+import { courseCatalog } from '../../../courses/catalog';
+import SeoLesson from '../../../courses/seo/Lesson.astro';
+import ReduxLesson from '../../../courses/redux/layouts/Lesson.astro';
+
+export async function getStaticPaths() {
+  return (await courseCatalog()).flatMap((entry) =>
+    entry.lessons.map((lesson) => ({
+      params: { course: entry.course.slug, slug: lesson.data.slug },
+      props: { entry, lesson },
+    })),
+  );
+}
+
+const { entry, lesson } = Astro.props;
+const Lesson = entry.course.presentation === 'redux' ? ReduxLesson : SeoLesson;
+---
+<Lesson entry={entry} lesson={lesson} />

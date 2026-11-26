@@ -1,0 +1,107 @@
+---
+slug: pagination
+module: rtk-query
+order: 18
+draft: false
+title: "Пагинация и infinite queries"
+description: "Обычная постраничная загрузка и infiniteQuery: аргумент запроса, pageParam, pages и pageParams."
+---
+import Quiz from '../../../../courses/redux/components/Quiz';
+import FeedLab from '../../../../courses/redux/components/FeedLab';
+
+# Пагинация и infinite queries
+
+<div className="learning-note"><strong>После урока ты сможешь</strong><p>Различать отдельную запись на страницу и общий результат бесконечного списка.</p></div>
+
+Перед началом: пройди [предыдущий урок](/redux/lessons/request-controls/).
+
+## Две модели списка
+
+В обычной пагинации аргумент содержит номер страницы. `getPosts(1)` и `getPosts(2)` — разные записи кэша. Это удобно для интерфейса «предыдущая / следующая страница».
+
+```ts
+getPosts: builder.query<Post[], number>({
+  query: page => `posts?page=${page}`,
+})
+```
+
+В infinite query несколько страниц хранятся в одной записи. Аргумент запроса определяет список, например категорию; `pageParam` определяет, какую его страницу загрузить.
+
+## Определяем infinite endpoint
+
+Пример добавляется в `endpoints` нашего API. Он предполагает ответ сервера `{ items: Post[], nextPage: number | null }`.
+
+```ts
+type Page = { items: Post[]; nextPage: number | null };
+getFeed: builder.infiniteQuery<Page, string, number>({
+  infiniteQueryOptions: {
+    initialPageParam: 1,
+    getNextPageParam: lastPage => lastPage.nextPage ?? undefined,
+  },
+  query: ({ queryArg, pageParam }) =>
+    `posts?category=${encodeURIComponent(queryArg)}&page=${pageParam}`,
+})
+```
+
+Три типа: результат одной страницы, аргумент списка, параметр страницы. `undefined` от `getNextPageParam` означает, что следующей страницы нет. Не возвращай тот же номер бесконечно.
+
+## Показываем накопленный результат
+
+```tsx
+const {
+  currentData, isFetching, isError, isFetchNextPageError,
+  fetchNextPage, hasNextPage, refetch,
+} = api.useGetFeedInfiniteQuery(category);
+
+if (!currentData) {
+  return isError
+    ? <button onClick={() => refetch()}>Повторить загрузку ленты</button>
+    : <p role="status">Загружаем ленту…</p>;
+}
+
+const posts = currentData.pages.flatMap(page => page.items);
+return <>
+  <ul aria-busy={isFetching}>
+    {posts.map(post => <li key={post.id}>{post.title}</li>)}
+  </ul>
+  {isFetchNextPageError && <p role="alert">Не удалось загрузить следующую страницу.</p>}
+  {hasNextPage && <button disabled={isFetching} onClick={() => fetchNextPage()}>
+    {isFetchNextPageError ? 'Повторить загрузку' : 'Загрузить ещё'}
+  </button>}
+</>;
+```
+
+Предположим, что `category` меняется при выборе фильтра. Пока новая категория загружается, `data` может содержать страницы предыдущей. `currentData` содержит страницы только текущей категории. Если они уже есть в кэше, список появится сразу.
+
+Если не открылась первая страница, повтори запрос через `refetch()`. При ошибке подгрузки `isFetchNextPageError` позволяет показать сообщение рядом со списком. Ранее загруженные страницы остаются в кэше, а кнопка снова вызывает `fetchNextPage()` для той же следующей страницы. Пока идёт запрос для этой ленты, кнопка отключена.
+
+## Границы и согласованность
+
+Для больших лент можно ограничить число хранимых страниц через `maxPages`; продумай движение назад и настрой соответствующие функции. У обычной пагинации удаление элемента на другой странице может изменить текущую страницу. Для корректной инвалидации часто нужна общая метка списка, а не только ids видимых элементов.
+
+**Задание на бумаге:** у категории `redux` загружены страницы 1 и 2. Сколько записей infinite-кэша это создаёт? Одну для аргумента `redux`, внутри неё два элемента `pages`. Для обычного query с номером страницы — две записи.
+
+## Что запомнить
+
+Номер страницы и идентичность списка — разные величины. Infinite query хранит страницы вместе и предоставляет управление их подгрузкой.
+
+## Лаборатория страниц
+
+1. Дождись первой страницы и смени категорию. Пока новая лента загружается, записи предыдущей категории исчезнут.
+2. Отметь «Имитировать ошибку подгрузки» и нажми «Загрузить ещё». Увидишь сообщение об ошибке, а первая страница останется на экране.
+3. Сними отметку и нажми «Повторить загрузку». Проверь, что `pageParams` теперь содержит `[1, 2]`. Подгрузи третью страницу и вернись к первой категории, чтобы увидеть её отдельную запись кэша.
+
+Учебный API отвечает с задержкой 350 мс. Страницы накапливает RTK Query.
+
+<FeedLab client:load />
+
+## Самопроверка
+
+<Quiz {...{"question": "Что входит в data у infinite query?", "options": ["Только последний объект", "pages и pageParams", "Отдельный store для каждой страницы"], "correct": 1, "explanation": "Страницы одного аргумента списка накоплены в одной кэш-записи."}} client:load />
+
+## Официальные источники
+
+- [infinite-queries](https://redux.js.org/toolkit/rtk-query/usage/infinite-queries)
+- [pagination](https://redux.js.org/toolkit/rtk-query/usage/pagination)
+
+Самостоятельное объяснение на основе официальной документации. Источники проверены 16 ноября 2026 года.

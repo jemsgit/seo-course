@@ -1,0 +1,31 @@
+---
+import Base from '../../../layouts/Base.astro';
+import { courseCatalog } from '../../../courses/catalog';
+import { coursePath, lessonPath } from '../../../courses/registry';
+
+export async function getStaticPaths() {
+  const catalog = await courseCatalog();
+  return catalog.flatMap(({ course, modules }) => course.modulePages
+    ? modules.filter(({ lessons }) => lessons.length).map((module) => ({
+        params: { course: course.slug, slug: module.slug },
+        props: { course, module },
+      }))
+    : []);
+}
+
+const { course, module } = Astro.props;
+const entries = module.lessons;
+const description = entries.map(({ data }) => data.title).join(' · ');
+---
+<Base course={course} title={module.title} description={description}>
+  <div class="wrap reading">
+    <nav aria-label="Хлебные крошки"><a href={coursePath(course.slug) + "#program"}>Программа</a></nav>
+    <h1>{module.title}</h1>
+    <h2>Уроки</h2>
+    <ol>{entries.map(({ data }) => <li><a href={lessonPath(course.slug, data.slug)}>{data.title}</a><p>{data.description}</p></li>)}</ol>
+    {module.assignment && <section class="exercise">
+      <h2>Итоговое задание</h2>
+      <p>{module.assignment}</p>
+    </section>}
+  </div>
+</Base>

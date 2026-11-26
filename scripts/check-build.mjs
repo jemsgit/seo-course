@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { readFileSync, readdirSync } from 'node:fs';
+import { readFileSync, readdirSync, statSync } from 'node:fs';
 
 const dist = new URL('../dist/', import.meta.url);
 const read = (file) => readFileSync(new URL(file, dist), 'utf8');
@@ -19,20 +19,25 @@ const indexable = [];
 
 for (const [path, html] of urls) {
   assert.match(html, /<h1[ >]/, `Missing H1 on ${path}`);
-  const canonical = html.match(/<link rel="canonical" href="([^"]+)"/)?.[1];
+  const head = html.slice(0, html.indexOf("</head>"));
+  const canonical = head.match(/<link rel="canonical" href="([^"]+)"/)?.[1];
   if (origin && path !== '/404.html') {
     assert.equal(canonical, new URL(path, origin).href, `Incorrect canonical on ${path}`);
-    assert.doesNotMatch(html, /name="robots" content="noindex"/);
+    assert.doesNotMatch(head, /<meta name="robots" content="noindex"/, `Unexpected noindex on ${path}`);
     indexable.push(canonical);
   } else {
     assert.equal(canonical, undefined);
-    assert.match(html, /name="robots" content="noindex"/);
+    assert.match(head, /<meta name="robots" content="noindex"/, `Missing noindex on ${path}`);
   }
 
   for (const [, href] of html.matchAll(/<a\b[^>]*\shref="([^"]+)"/g)) {
     if (!href.startsWith('/') && !href.startsWith('#')) continue;
     const target = new URL(href, new URL(path, 'https://example.invalid'));
     const page = urls.get(target.pathname);
+    if (!page && !target.hash) {
+      const asset = new URL('.' + target.pathname, dist);
+      if (statSync(asset, { throwIfNoEntry: false })?.isFile()) continue;
+    }
     assert(page, `Broken link on ${path}: ${href}`);
     if (target.hash) {
       assert(page.includes(`id="${decodeURIComponent(target.hash.slice(1))}"`), `Broken fragment on ${path}: ${href}`);

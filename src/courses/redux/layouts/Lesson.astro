@@ -1,0 +1,18 @@
+---
+import Base from './Base.astro';
+import { render } from 'astro:content';
+import { type CourseEntry, type LessonEntry } from '../../catalog';
+import { coursePath, lessonPath } from '../../registry';
+
+interface Props { entry: CourseEntry; lesson: LessonEntry }
+const { entry, lesson } = Astro.props;
+const { course, modules } = entry;
+const lessons = entry.lessons.map(({ data }) => data);
+const current = lesson.data;
+const index = lessons.findIndex(({ slug }) => slug === current.slug);
+const previous = index > 0 ? lessons[index - 1] : undefined;
+const next = lessons[index + 1];
+const group = modules.find(({ slug }) => slug === current.module)!.title;
+const { Content } = await render(lesson);
+---
+<Base title={current.title} description={current.description}><div class="lesson-shell"><aside class="sidebar"><a class="back" href={coursePath(course.slug)}>← К программе</a><span class="eyebrow">Все уроки</span><nav class="curriculum-nav" aria-label="Программа учебника">{lessons.map((lesson, position) => <a href={lessonPath(course.slug, lesson.slug)} aria-current={lesson.slug === current.slug ? 'page' : undefined}><span>{String(position + 1).padStart(2, '0')}</span>{lesson.title}</a>)}</nav><div class="side-note">Сначала пойми механизм.<br/>Потом запоминай API.</div></aside><main id="main" class="lesson"><div class="breadcrumb"><a href={coursePath(course.slug)}>Учебник</a><span>/</span>{group}</div><details class="mobile-curriculum"><summary>Программа · урок {index + 1} из {lessons.length}</summary><nav aria-label="Программа на мобильном">{lessons.map((lesson, position) => <a href={lessonPath(course.slug, lesson.slug)} aria-current={lesson.slug === current.slug ? 'page' : undefined}>{position + 1}. {lesson.title}</a>)}</nav></details><span class="eyebrow">Урок {String(index + 1).padStart(2, '0')} / {lessons.length} · {group}</span><article class="prose"><Content /></article><nav class="lesson-pagination" aria-label="Переход между уроками">{previous ? <a href={lessonPath(course.slug, previous.slug)}><span class="eyebrow">← Предыдущий</span><strong>{previous.title}</strong></a> : <a href={coursePath(course.slug)}><span class="eyebrow">← Программа</span><strong>Все уроки</strong></a>}{next ? <a href={lessonPath(course.slug, next.slug)}><span class="eyebrow">Следующий →</span><strong>{next.title}</strong></a> : <a href={coursePath(course.slug)}><span class="eyebrow">К программе →</span><strong>Повторить нужную тему</strong></a>}</nav></main></div></Base>

@@ -1,0 +1,8 @@
+.project-board .tasks-body { padding: 1rem; }
+.task-board { margin-top: 1rem; }
+.task-board ul { padding-inline-start: 1.5rem; }
+.task-board li + li { margin-top: .75rem; }
+.task-board form { display: flex; flex-wrap: wrap; align-items: center; gap: .5rem; margin-top: .5rem; }
+.task-board input, .task-board select, .task-board button { font: inherit; }
+.task-board input { max-inline-size: 100%; }
+.task-board [role="alert"] { margin: .25rem 0; }

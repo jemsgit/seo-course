@@ -1,4 +1,6 @@
 import { defineConfig } from 'astro/config';
+import mdx from '@astrojs/mdx';
+import react from '@astrojs/react';
 
 const site = process.env.SITE_URL;
 if (site) {
@@ -8,4 +10,4 @@ if (site) {
   }
 }
 
-export default defineConfig({ site, output: 'static', trailingSlash: 'always' });
+export default defineConfig({ site, output: 'static', integrations: [react(), mdx()], trailingSlash: 'always' });

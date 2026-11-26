@@ -1,0 +1,95 @@
+---
+slug: request-controls
+module: rtk-query
+order: 17
+draft: false
+title: "Управляем запросами"
+description: "skipToken, lazy queries, refetch, polling, prefetch и события focus/reconnect."
+---
+import Quiz from '../../../../courses/redux/components/Quiz';
+import QueryLab from '../../../../courses/redux/components/QueryLab';
+
+# Управляем запросами
+
+<div className="learning-note"><strong>После урока ты сможешь</strong><p>Выбирать способ запуска и обновления запроса под поведение интерфейса.</p></div>
+
+Перед началом: пройди [предыдущий урок](/redux/lessons/tags/).
+
+## Не все запросы нужны сразу
+
+Если id ещё не выбран, нельзя запрашивать «неизвестную запись». Для условного выполнения используй `skip` или `skipToken`. Второй вариант удобен для TypeScript, когда аргумент hook не допускает undefined.
+
+```tsx
+import { skipToken } from '@reduxjs/toolkit/query/react';
+const result = api.useGetPostQuery(id ?? skipToken);
+```
+
+Фрагмент внутри компонента предполагает `id: number | undefined`. Подписка на выбранный запрос появится, когда id станет известен.
+
+## Запуск по кнопке и повторное чтение
+
+```tsx
+const [load, result] = api.useLazyGetPostQuery();
+// Например, в onClick:
+load(1);
+// Для предпочтения имеющегося кэша:
+load(1, true);
+```
+
+Lazy query даёт явный trigger. `refetch()` у обычного query повторяет уже инициированный запрос; его не следует вызывать для ещё не запущенного запроса. Политики `refetchOnMountOrArgChange`, `refetchOnFocus` и `refetchOnReconnect` решают другие задачи.
+
+## Polling и события браузера
+
+```tsx
+const query = api.useGetPostQuery(1, {
+  pollingInterval: 10000,
+  skipPollingIfUnfocused: true,
+  refetchOnReconnect: true,
+});
+```
+
+`pollingInterval` задаётся в миллисекундах. Для поведения focus/reconnect и `skipPollingIfUnfocused` подключи listeners один раз при настройке store:
+
+```ts
+import { setupListeners } from '@reduxjs/toolkit/query';
+setupListeners(store.dispatch);
+```
+
+Частый polling увеличивает нагрузку. Выбирай интервал по требованиям к свежести и учитывай ошибки, вкладки и количество пользователей.
+
+## Предзагрузка без постоянной подписки
+
+`api.usePrefetch('getPost')` возвращает функцию, которую можно вызвать при наведении или фокусе ссылки:
+
+```tsx
+const prefetch = api.usePrefetch('getPost');
+return <a href="/posts/1" onFocus={() => prefetch(1, { ifOlderThan: 30 })}>
+  Открыть запись
+</a>;
+```
+
+Prefetch прогревает кэш, но не удерживает обычную активную подписку компонента. Число `ifOlderThan` — секунды. Для доступного интерфейса не ограничивай предзагрузку исключительно наведением мыши.
+
+## Эксперимент
+
+В лаборатории выключи компонент B: его hook размонтируется. Включи снова до истечения времени хранения и сравни поведение с включением после удаления кэша. Это показывает, как наличие запроса и подписки отличается от ручного refetch.
+
+## Что запомнить
+
+Условие запуска, запрос по событию, повторное чтение и предзагрузка — разные потребности. Подбирай API под конкретную из них.
+
+## Лаборатория
+
+<QueryLab client:load />
+
+## Самопроверка
+
+<Quiz {...{"question": "Какова единица pollingInterval?", "options": ["Секунды", "Миллисекунды", "Количество рендеров"], "correct": 1, "explanation": "pollingInterval задаётся в миллисекундах; keepUnusedDataFor и ifOlderThan используют секунды."}} client:load />
+
+## Официальные источники
+
+- [conditional-fetching](https://redux.js.org/toolkit/rtk-query/usage/conditional-fetching)
+- [polling](https://redux.js.org/toolkit/rtk-query/usage/polling)
+- [prefetching](https://redux.js.org/toolkit/rtk-query/usage/prefetching)
+
+Самостоятельное объяснение на основе официальной документации. Источники проверены 16 ноября 2026 года.

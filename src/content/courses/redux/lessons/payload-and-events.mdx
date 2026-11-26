@@ -1,0 +1,208 @@
+---
+slug: payload-and-events
+module: toolkit
+order: 5
+draft: false
+title: "Payload и взаимодействие slices"
+description: "Передача данных в действиях, extraReducers и одно событие для нескольких slices."
+---
+import Quiz from '../../../../courses/redux/components/Quiz';
+import TasksLab from '../../../../courses/redux/components/TasksLab';
+
+# Payload и взаимодействие slices
+
+<div className="learning-note"><strong>После урока ты сможешь</strong><p>Передавать payload и реагировать на общее событие в нескольких reducers.</p></div>
+
+Перед началом: пройди [предыдущий урок](/redux/lessons/react-redux/).
+
+## Действию нужны подробности
+
+Одного типа `tasks/added` недостаточно: какую задачу добавить? Дополнительные данные передаются в `payload`. Объект действия остаётся обычными данными, которые удобно видеть в DevTools.
+
+```ts
+import { createSlice, createAction, type PayloadAction } from '@reduxjs/toolkit';
+const sessionEnded = createAction('session/ended');
+const filterSlice = createSlice({
+  name: 'filter', initialState: 'all' as 'all' | 'active',
+  reducers: {
+    changed: (_state, action: PayloadAction<'all' | 'active'>) => action.payload,
+  },
+  extraReducers: builder => builder.addCase(sessionEnded, () => 'all' as const),
+});
+filterSlice.actions.changed('active');
+// { type: 'filter/changed', payload: 'active' }
+```
+
+Для примитива возвращаем новое значение. Присваивание локальной переменной `state = action.payload` ничего не вернёт и не заменит состояние.
+
+## reducers и extraReducers: в чём разница
+
+Оба раздела описывают, **как этот slice меняет свою часть состояния при получении действия**. Главное различие — создаёт ли slice ещё и само описание события вместе с action creator.
+
+| Раздел createSlice | Что задаём | Что создаётся автоматически |
+| --- | --- | --- |
+| `reducers` | Собственные именованные обработчики событий slice | Обработчик, тип действия и action creator в `slice.actions` |
+| `extraReducers` | Реакцию на уже существующие типы действий | Только обработчики; новых action creators в `slice.actions` не появится |
+
+В начале урока `changed` объявлен в `reducers`. Поэтому можно вызвать `filterSlice.actions.changed('active')`: получим `{ type: 'filter/changed', payload: 'active' }`.
+
+А `sessionEnded` уже создан через `createAction('session/ended')`. Фильтру нужно отреагировать на него, поэтому используется `extraReducers`. Вызова `filterSlice.actions.sessionEnded()` не существует: отправляй `store.dispatch(sessionEnded())`.
+
+Слово «внешний» здесь означает «объявленный отдельно от reducers этого slice». Действие может прийти из другого slice, общего модуля событий или `createAsyncThunk`. С сервером или асинхронностью само название `extraReducers` не связано.
+
+## Читаем builder.addCase
+
+```ts
+extraReducers: builder => {
+  builder.addCase(sessionEnded, (state, action) => {
+    return 'all' as const;
+  });
+}
+```
+
+Это фрагмент конфигурации `filterSlice`. `builder` помогает зарегистрировать обработчики. Первый аргумент `addCase` — action creator или строка типа действия, второй — обработчик с обычными аргументами `state` и `action`.
+
+Здесь `state` — **состояние конкретного слайса `filterSlice`, а не всего store**. В этом примере состояние слайса — строка, и обработчик заменяет её на `'all'`. Это правило действует для обработчиков и в `reducers`, и в `extraReducers`: они получают состояние своего слайса.
+
+Предпочитай action creator: `addCase(sessionEnded, ...)` использует его тип действия и помогает TypeScript вывести тип payload. Не передавай `sessionEnded()` — здесь нужен creator, а не созданный объект действия.
+
+Обработчик сработает, когда действие будет отправлено через dispatch. Само объявление `addCase` не отправляет action и не выполняет обработчик немедленно.
+
+## Одно событие, несколько реакций
+
+Завершение сессии касается и фильтра, и задач. Полный самостоятельный пример показывает, как одно действие меняет две части store:
+
+```ts
+import { configureStore, createAction, createSlice } from '@reduxjs/toolkit';
+
+const sessionEnded = createAction('session/ended');
+const tasksSlice = createSlice({
+  name: 'tasks',
+  initialState: ['Изучить extraReducers'],
+  reducers: {},
+  extraReducers: builder => {
+    builder.addCase(sessionEnded, () => []);
+  },
+});
+const filterSlice = createSlice({
+  name: 'filter',
+  initialState: { activeOnly: true },
+  reducers: {
+    toggled(state) { state.activeOnly = !state.activeOnly; },
+  },
+  extraReducers: builder => {
+    builder.addCase(sessionEnded, state => { state.activeOnly = false; });
+  },
+});
+const store = configureStore({
+  reducer: { tasks: tasksSlice.reducer, filter: filterSlice.reducer },
+});
+
+store.dispatch(sessionEnded());
+console.log(store.getState());
+// { tasks: [], filter: { activeOnly: false } }
+```
+
+Store передаёт действие корневому reducer, а тот — подключённым reducers отдельных частей. Каждый решает, реагировать ли на этот тип действия. Обработчик задач меняет только задачи; обработчик фильтра — только фильтр. `extraReducers` не даёт прямого доступа к состоянию соседнего slice.
+
+В лаборатории ниже данные задач нормализованы, а фильтр хранится строкой. Форма отличается от самостоятельного примера, но событие `session/ended` так же сбрасывает обе части.
+
+## Когда extraReducers особенно нужен
+
+1. **Общее событие:** выход пользователя должен очистить несколько частей состояния.
+2. **Действие другого slice:** один slice сообщает о событии, другие описывают собственную реакцию.
+3. **Жизненный цикл async thunk:** нужно обработать `pending`, `fulfilled` и `rejected`, созданные `createAsyncThunk`.
+
+Последний случай подробно изучим в [уроке об асинхронности](/redux/lessons/async-thunks/). В сокращённом фрагменте `loadTasks` — уже объявленный async thunk:
+
+```ts
+extraReducers: builder => {
+  builder.addCase(loadTasks.pending, state => {
+    state.status = 'pending';
+  });
+  builder.addCase(loadTasks.fulfilled, (state, action) => {
+    state.status = 'fulfilled';
+    state.items = action.payload;
+  });
+}
+```
+
+Здесь предполагается slice с полями `status` и `items`. Сетевой запрос выполняется внутри thunk; эти обработчики только синхронно обновляют состояние по его событиям. Не пиши `async` и `await fetch(...)` внутри `extraReducers`.
+
+## Общие правила
+
+В обоих разделах обработчики остаются чистыми и получают поддержку Immer. Можно менять черновик или вернуть новое состояние. Всё описанное в `reducers` и `extraReducers` объединяется в **одну функцию `slice.reducer`**. В `configureStore` по-прежнему подключается только она; отдельный `slice.extraReducers` в store добавлять не нужно.
+
+Общие события удобно вынести в отдельный модуль, чтобы slices не импортировали друг друга по кругу. Если один и тот же тип действия объявлен и в `reducers`, и в `extraReducers` одного slice, приоритет имеет обработчик из `reducers`: это не способ запустить два обработчика подряд.
+
+## Данные должны быть воспроизводимыми
+
+Генерируй id до входа в reducer: в обработчике события или в `prepare`. Reducer должен получать готовые данные: повторная обработка одного и того же action не должна создавать новый id.
+
+### prepare: подготавливаем данные действия
+
+`prepare` — функция, которая подготавливает данные при вызове action creator, **до отправки действия в store**. Она получает аргументы action creator и возвращает объект с полем `payload`. Например, вызывающий код передаёт только название задачи, а `prepare` добавляет id:
+
+```ts
+import { createSlice, nanoid, type PayloadAction } from '@reduxjs/toolkit';
+
+type Task = { id: string; title: string };
+
+const tasksSlice = createSlice({
+  name: 'tasks',
+  initialState: [] as Task[],
+  reducers: {
+    added: {
+      prepare(title: string) {
+        return {
+          payload: { id: nanoid(), title },
+        };
+      },
+      reducer(state, action: PayloadAction<Task>) {
+        state.push(action.payload);
+      },
+    },
+  },
+});
+
+const action = tasksSlice.actions.added('Изучить prepare');
+// Уже создано действие:
+// { type: 'tasks/added', payload: { id: '...', title: 'Изучить prepare' } }
+```
+
+`nanoid` — доступная из Redux Toolkit функция генерации случайного строкового id. В этом примере id появляется при вызове `added(...)`, даже если действие ещё не отправлено. Сам вызов action creator состояние не меняет.
+
+После подключения `tasksSlice.reducer` к store действие можно отправить:
+
+```ts
+store.dispatch(action);
+```
+
+Порядок: **`added(title)` → `prepare(title)` → готовый action → `dispatch(action)` → reducer**. Reducer получает готовый `action.payload`; сам `prepare` состояние не получает и не изменяет.
+
+Повторная обработка того же объекта `action` использует тот же id. Новый вызов `added('Изучить prepare')` снова запустит `prepare` и создаст новый id. Это разные действия, даже если название одинаковое.
+
+`prepare` необязателен. Если готовый объект задачи уже создан в обработчике события, его можно передать обычному action creator без `prepare`. Используй подготовку, когда удобно централизовать создание payload.
+
+Избегай функций, DOM-элементов, Promise, Map и Set в обычных actions и state: стандартные проверки сериализуемости помогут заметить проблему. Для времени часто достаточно строки или числа.
+
+**Эксперимент:** выбери «Только активные», затем «Завершить сессию». Одно событие очищает задачи и возвращает фильтр к `all`. Открой состояние и проверь оба поля.
+
+## Что запомнить
+
+`type` обозначает событие, `payload` несёт данные. Несколько slices могут независимо реагировать на один action через `extraReducers`.
+
+## Лаборатория
+
+<TasksLab mode="payload" client:load />
+
+## Самопроверка
+
+<Quiz {...{"question": "Создаёт ли extraReducers новые action creators?", "options": ["Да, для каждого addCase", "Нет, он только подключает обработку внешних действий"], "correct": 1, "explanation": "Action creator общего события создаётся отдельно через createAction или в другом slice."}} client:load />
+
+## Официальные источники
+
+- [createSlice: extraReducers](https://redux.js.org/toolkit/api/createSlice#extrareducers)
+- [part-4-using-data](https://redux.js.org/tutorials/essentials/part-4-using-data)
+
+Самостоятельное объяснение на основе официальной документации. Источники проверены 16 ноября 2026 года.

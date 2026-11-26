@@ -1,0 +1,96 @@
+---
+slug: api-organization
+module: rtk-query
+order: 21
+draft: false
+title: "Организация API и streaming"
+description: "injectEndpoints, разделение API по модулям и жизненный цикл onCacheEntryAdded."
+---
+import Quiz from '../../../../courses/redux/components/Quiz';
+import QueryLab from '../../../../courses/redux/components/QueryLab';
+
+# Организация API и streaming
+
+<div className="learning-note"><strong>После урока ты сможешь</strong><p>Разделять endpoints по файлам и освобождать ресурсы streaming-подписки.</p></div>
+
+Перед началом: пройди [предыдущий урок](/redux/lessons/custom-queries/).
+
+## Один API, несколько файлов
+
+Необязательно хранить все endpoints в одном большом файле. Можно создать базовый API без endpoints, затем расширять его по мере загрузки модулей. Для связанных данных это сохраняет общие middleware и tags.
+
+```ts
+// baseApi.ts
+import { createApi, fetchBaseQuery } from '@reduxjs/toolkit/query/react';
+export const baseApi = createApi({
+  baseQuery: fetchBaseQuery({ baseUrl: '/api/' }),
+  tagTypes: ['Post'],
+  endpoints: () => ({}),
+});
+```
+
+```ts
+// postsApi.ts
+import { baseApi } from './baseApi';
+type Post = { id: number; title: string };
+export const postsApi = baseApi.injectEndpoints({
+  endpoints: builder => ({
+    getPost: builder.query<Post, number>({ query: id => `posts/${id}` }),
+  }),
+});
+export const { useGetPostQuery } = postsApi;
+```
+
+`injectEndpoints` расширяет тот же API-объект и возвращает ссылку с дополненными TypeScript-типами. Для новых hooks используй экспорт расширенного модуля. Создавать отдельный reducer и middleware для него не нужно.
+
+## Streaming живёт вместе с записью кэша
+
+`onQueryStarted` относится к операции запроса. `onCacheEntryAdded` относится к жизни кэш-записи. Это подходящее место для соединения, которое дополняет исходные данные событиями.
+
+Ниже псевдокод: `openPostStream` — транспорт приложения, который возвращает функцию закрытия. Его нужно реализовать на базе собственного протокола WebSocket или SSE.
+
+```ts
+async onCacheEntryAdded(id, {
+  cacheDataLoaded, cacheEntryRemoved, updateCachedData,
+}) {
+  let close = () => {};
+  try {
+    await cacheDataLoaded;
+    close = openPostStream(id, message => {
+      updateCachedData(draft => { draft.title = message.title; });
+    });
+    await cacheEntryRemoved;
+  } catch {
+    // Начальные данные могли не загрузиться до удаления записи.
+  } finally {
+    close();
+  }
+}
+```
+
+В готовом приложении проверяй формат сообщений, порядок событий, реконнект и возможный промежуток между начальным запросом и подключением потока. Этот эскиз показывает владение ресурсом, а не готовый протокол синхронизации.
+
+## Когда закрывать соединение
+
+Удаление последнего компонента не всегда сразу удаляет кэш. Пока действует `keepUnusedDataFor`, запись может жить и удерживать поток. `cacheEntryRemoved` разрешается при удалении самой записи.
+
+**Эксперимент:** отключи все подписки в лаборатории и дождись удаления записи. В ней нет WebSocket, но момент удаления кэша помогает понять, где завершился бы streaming lifecycle.
+
+## Что запомнить
+
+Разделение файлов не требует разделения кэша. У внешнего ресурса должен быть понятный владелец и гарантированная очистка.
+
+## Лаборатория
+
+<QueryLab client:load />
+
+## Самопроверка
+
+<Quiz {...{"question": "Когда разрешается cacheEntryRemoved?", "options": ["При каждом refetch", "Когда удалена запись кэша", "Сразу после каждого рендера"], "correct": 1, "explanation": "Это событие жизненного цикла кэш-записи, а не отдельного запроса или компонента."}} client:load />
+
+## Официальные источники
+
+- [code-splitting](https://redux.js.org/toolkit/rtk-query/usage/code-splitting)
+- [streaming-updates](https://redux.js.org/toolkit/rtk-query/usage/streaming-updates)
+
+Самостоятельное объяснение на основе официальной документации. Источники проверены 16 ноября 2026 года.

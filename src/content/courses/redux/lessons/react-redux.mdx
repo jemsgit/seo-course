@@ -1,0 +1,90 @@
+---
+slug: react-redux
+module: toolkit
+order: 4
+draft: false
+title: "Подключаем React и типизированные хуки"
+description: "Provider, useSelector и useDispatch: подключение компонентов к Redux с TypeScript."
+---
+import Quiz from '../../../../courses/redux/components/Quiz';
+import TasksLab from '../../../../courses/redux/components/TasksLab';
+
+# Подключаем React и типизированные хуки
+
+<div className="learning-note"><strong>После урока ты сможешь</strong><p>Читать выбранные данные в React и отправлять типизированные действия.</p></div>
+
+Перед началом: пройди [предыдущий урок](/redux/lessons/store-and-slice/).
+
+## Одна связь для всего поддерева
+
+Store сам по себе не знает о React. Библиотека React Redux связывает подписки хранилища с компонентами. Помести `Provider` над теми компонентами, которым нужен доступ к store.
+
+```tsx
+import { Provider } from 'react-redux';
+import { store } from './store';
+import { TaskList } from './TaskList';
+export function App() {
+  return <Provider store={store}><TaskList /></Provider>;
+}
+```
+
+Store из предыдущего урока создаётся вне компонента. Если создавать его при каждом рендере `App`, состояние может непреднамеренно сбрасываться. Для независимых учебных стендов мы создаём отдельный стабильный store на экземпляр.
+
+## Типы выводим из store
+
+В файле `hooks.ts` объявим хуки. Импорт типов не создаёт зависимость во время выполнения.
+
+```ts
+import { useDispatch, useSelector } from 'react-redux';
+import type { AppDispatch, RootState } from './store';
+export const useAppDispatch = useDispatch.withTypes<AppDispatch>();
+export const useAppSelector = useSelector.withTypes<RootState>();
+```
+
+`RootState` и `AppDispatch` уже определены в `store.ts` через `ReturnType` и `typeof`. Не описывай корневое состояние второй раз вручную: после добавления slice оно должно обновляться автоматически.
+
+## Компонент читает нужную часть
+
+Этот пример продолжает массив задач из урока 3:
+
+```tsx
+import { added } from './store';
+import { useAppDispatch, useAppSelector } from './hooks';
+export function TaskList() {
+  const tasks = useAppSelector(state => state.tasks);
+  const dispatch = useAppDispatch();
+  return <>
+    <button onClick={() => dispatch(added({
+      id: crypto.randomUUID(), title: 'Новая задача', done: false,
+    }))}>Добавить</button>
+    <ul>{tasks.map(task => <li key={task.id}>{task.title}</li>)}</ul>
+  </>;
+}
+```
+
+Селектор должен быть чистым: вычисляй значение, не отправляй из него действия и не меняй state. React Redux может вызывать его неоднократно.
+
+## Почему компонент обновляется
+
+По умолчанию `useSelector` сравнивает прежний и новый результат через `===`. Изменение выбранного массива даст новую ссылку и приведёт к обновлению. Выбор всего корневого состояния создаёт лишнюю связь с любым изменением; выбирай только то, что требуется компоненту.
+
+**Эксперимент:** в стенде включи фильтр активных задач и переключи чекбокс. Состояние меняет Redux, а список обновляется через `useSelector`.
+
+## Что запомнить
+
+Provider передаёт store, селектор читает данные, dispatch отправляет события. Типизированные хуки уменьшают повторение типов и знают о thunk dispatch.
+
+## Лаборатория
+
+<TasksLab mode="basic" client:load />
+
+## Самопроверка
+
+<Quiz {...{"question": "Должен ли селектор отправлять действия?", "options": ["Да, при каждом чтении", "Нет, он должен только вычислять результат", "Только если компонент не обновился"], "correct": 1, "explanation": "Селектор — чистая функция чтения. Действия отправляют обработчики событий, эффекты или middleware."}} client:load />
+
+## Официальные источники
+
+- [part-3-data-flow](https://redux.js.org/tutorials/essentials/part-3-data-flow)
+- [usage-with-typescript](https://redux.js.org/usage/usage-with-typescript)
+
+Самостоятельное объяснение на основе официальной документации. Источники проверены 16 ноября 2026 года.

@@ -1,0 +1,82 @@
+---
+slug: store-and-slice
+module: toolkit
+order: 3
+draft: false
+title: "Собираем store и slice"
+description: "Практика configureStore и createSlice: начальное состояние, reducer и создание действий."
+---
+import Quiz from '../../../../courses/redux/components/Quiz';
+import TasksLab from '../../../../courses/redux/components/TasksLab';
+
+# Собираем store и slice
+
+<div className="learning-note"><strong>После урока ты сможешь</strong><p>Создать slice задач и подключить его к store.</p></div>
+
+Перед началом: пройди [предыдущий урок](/redux/lessons/data-flow/).
+
+## От правил к хранилищу
+
+В предыдущем уроке мы увидели поток данных. Теперь соберём его из двух частей. Slice описывает отдельную область состояния и правила её изменения. Store объединяет reducers и предоставляет `dispatch` и `getState`.
+
+Для работающего React-приложения установи `@reduxjs/toolkit` и `react-redux`. В уроках используем TypeScript. React-проект можно создать обычным способом; ниже показана Redux-часть, которую можно поместить в `store.ts`.
+
+```ts
+import { configureStore, createSlice, type PayloadAction } from '@reduxjs/toolkit';
+type Task = { id: string; title: string; done: boolean };
+const tasksSlice = createSlice({
+  name: 'tasks',
+  initialState: [] as Task[],
+  reducers: {
+    added(state, action: PayloadAction<Task>) {
+      state.push(action.payload);
+    },
+  },
+});
+export const { added } = tasksSlice.actions;
+export const store = configureStore({
+  reducer: { tasks: tasksSlice.reducer },
+});
+export type RootState = ReturnType<typeof store.getState>;
+export type AppDispatch = typeof store.dispatch;
+```
+
+`PayloadAction<Task>` описывает тип данных в действии. Имя `tasks` внутри `createSlice` задаёт префикс типов действий. Ключ `tasks` в объекте `reducer` определяет путь в корневом состоянии. Эти имена могут различаться, хотя одинаковые обычно проще читать.
+
+## Проверяем результат без React
+
+```ts
+store.dispatch(added({ id: '1', title: 'Изучить slice', done: false }));
+console.log(store.getState());
+// { tasks: [{ id: '1', title: 'Изучить slice', done: false }] }
+```
+
+Функция `added` возвращает action. Вызов reducer вручную возможен в тестах, но в приложении отправляй действия через store: тогда работают подписки и middleware.
+
+`configureStore` уже включает полезные настройки: thunk middleware, интеграцию DevTools и проверки типичных ошибок в режиме разработки. Не нужно повторять старые примеры с ручным `createStore` и настройкой всего с нуля.
+
+## Эксперимент
+
+В стенде добавь задачу и раскрой состояние. Здесь используется нормализованная форма, которую подробно разберём в уроке 9; пока следи за тем, что действие приводит к новым данным. Сравни её с массивом из примера выше: логика потока одинакова, форма состояния разная.
+
+## Частая ошибка
+
+Не передавай весь объект slice вместо reducer: нужно `tasksSlice.reducer`, а не `tasksSlice`. Store ожидает функцию обновления состояния.
+
+## Что запомнить
+
+Slice создаёт reducer и action creators. `configureStore` подключает reducers. Корневая структура состояния определяется ключами объекта `reducer`.
+
+## Лаборатория
+
+<TasksLab mode="basic" client:load />
+
+## Самопроверка
+
+<Quiz {...{"question": "Что определяет путь state.tasks в примере?", "options": ["Ключ tasks в configureStore.reducer", "Имя файла tasks.ts", "Имя переменной tasksSlice"], "correct": 0, "explanation": "Ключ reducer: { tasks: ... } создаёт поле tasks в корневом состоянии."}} client:load />
+
+## Официальные источники
+
+- [part-2-app-structure](https://redux.js.org/tutorials/essentials/part-2-app-structure)
+
+Самостоятельное объяснение на основе официальной документации. Источники проверены 16 ноября 2026 года.

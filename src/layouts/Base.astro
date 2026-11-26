@@ -1,7 +1,10 @@
 ---
 import '../site.css';
-interface Props { title: string; description: string; noindex?: boolean }
-const { title, description, noindex } = Astro.props;
+import { coursePath, type Course } from '../courses/registry';
+interface Props { title: string; description: string; noindex?: boolean; hub?: boolean; course?: Course }
+const { title, description, noindex, hub, course } = Astro.props;
+const home = coursePath(course?.slug ?? 'seo');
+const name = course?.name ?? 'SEO Практика';
 const canonical = Astro.site && !noindex && new URL(Astro.url.pathname, Astro.site);
 ---
 <!doctype html>
@@ -9,15 +12,15 @@ const canonical = Astro.site && !noindex && new URL(Astro.url.pathname, Astro.si
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>{title} — SEO Практика</title>
+    <title>{hub ? title : `${title} — ${name}`}</title>
     <meta name="description" content={description} />
     {canonical && <link rel="canonical" href={canonical.href} />}
     {(noindex || !Astro.site) && <meta name="robots" content="noindex" />}
   </head>
   <body>
     <a class="skip" href="#main">К содержанию</a>
-    <header><div class="wrap bar"><a class="brand" href="/">SEO <span>/</span> Практика</a><nav aria-label="Главная навигация"><a href="/#program">Программа</a></nav></div></header>
+    <header><div class="wrap bar"><a class="brand" href={hub ? "/" : home}>{hub ? "Курсы для разработчиков" : course?.presentation === "seo" || !course ? <>SEO <span>/</span> Практика</> : name}</a><nav aria-label="Главная навигация">{!hub && <a href={home + "#program"}>Программа</a>} <a href="/">Все курсы</a></nav></div></header>
     <main id="main"><slot /></main>
-    <footer class="wrap">SEO / Практика</footer>
+    {!hub && <footer class="wrap">{course?.presentation === "seo" || !course ? "SEO / Практика" : name}</footer>}
   </body>
 </html>

@@ -1,0 +1,118 @@
+---
+slug: custom-queries
+module: rtk-query
+order: 20
+draft: false
+title: "Заголовки, ошибки и преобразование ответа"
+description: "prepareHeaders, transformResponse, fetchBaseQuery и контракт собственной baseQuery."
+---
+import Quiz from '../../../../courses/redux/components/Quiz';
+import QueryLab from '../../../../courses/redux/components/QueryLab';
+
+# Заголовки, ошибки и преобразование ответа
+
+<div className="learning-note"><strong>После урока ты сможешь</strong><p>Отделять транспорт, формат ответа и состояние интерфейса.</p></div>
+
+Перед началом: пройди [предыдущий урок](/redux/lessons/optimistic-updates/).
+
+## Транспортные детали в одном месте
+
+Вынеси базовый адрес и общие заголовки в `fetchBaseQuery`. Например, токен можно получить из выбранного места хранения через `getState`. Пример не определяет полную стратегию аутентификации: место хранения токена, cookies и обновление сессии зависят от сервера.
+
+```ts
+import { fetchBaseQuery } from '@reduxjs/toolkit/query/react';
+type AuthState = { auth: { token: string | null } };
+const baseQuery = fetchBaseQuery({
+  baseUrl: '/api/',
+  prepareHeaders(headers, { getState }) {
+    const token = (getState() as AuthState).auth.token;
+    if (token) headers.set('authorization', `Bearer ${token}`);
+    return headers;
+  },
+});
+```
+
+Здесь store должен действительно содержать `auth.token`. Проверка типов не создаёт это поле. Для cookie-аутентификации обычно потребуются иные настройки транспорта и сервера.
+
+## Приводим ответ к форме приложения
+
+Сервер может вернуть оболочку `{ item: Post }`, тогда как компоненту нужна сама запись:
+
+```ts
+getPost: builder.query<Post, number>({
+  query: id => `posts/${id}`,
+  transformResponse: (response: { item: Post }) => response.item,
+})
+```
+
+Результат преобразования попадёт в кэш. `transformResponse` не является runtime-валидацией: он предполагает объявленную структуру. Аналогично `transformErrorResponse` помогает привести ошибки к удобной форме.
+
+## Ошибки имеют разные формы
+
+У `fetchBaseQuery` HTTP-ошибка содержит числовой `status` и данные ответа. Возможны также транспортные ошибки с текстовым статусом. Не предполагай, что у любого `error` обязательно есть `message` или одинаковый JSON.
+
+Показывай человеку понятное сообщение, а детали используй для диагностики. Повторять любую ошибку бесконечно не нужно: ошибка валидации и временный сетевой сбой требуют разного поведения.
+
+## Собственный baseQuery
+
+Если источником данных служит другой SDK или учебная память браузера, `baseQuery` должен вернуть объект `{ data }` либо `{ error }`. Перехватывай исключения и переводись в этот контракт. В лаборатории именно такая функция имитирует задержку и ошибки; она не выполняет HTTP-запросы.
+
+Если несколько запросов одновременно получат 401, они могут запустить несколько обновлений одной сессии. В [уроке про сессию](/redux/lessons/session-and-cache/) можно увидеть, как два запроса дожидаются одного refresh и что происходит при выходе во время обновления.
+
+## queryFn: своя последовательность для одного endpoint
+
+Собственный `baseQuery` меняет транспорт для API. `queryFn` позволяет описать особую логику одного endpoint: например, сначала загрузить пользователя, затем его записи. Возвращаем один итоговый результат или ошибку.
+
+Пример ниже — фрагмент `endpoints` API с `fetchBaseQuery({ baseUrl: '/api/' })`. Сервер должен предоставлять `users/:id` и `users/:id/posts`.
+
+```ts
+type User = { id: number; name: string };
+type Post = { id: number; title: string };
+getProfile: builder.query<{ user: User; posts: Post[] }, number>({
+  async queryFn(id, _api, _extraOptions, baseQuery) {
+    const userResult = await baseQuery(`users/${id}`);
+    if (userResult.error) return { error: userResult.error };
+    const postsResult = await baseQuery(`users/${id}/posts`);
+    if (postsResult.error) return { error: postsResult.error };
+    return {
+      data: {
+        user: userResult.data as User,
+        posts: postsResult.data as Post[],
+      },
+    };
+  },
+})
+```
+
+Четвёртый аргумент `queryFn` — настроенный `baseQuery`: он сохраняет общие заголовки, транспорт и обработку ответа. Первый неуспех останавливает последовательность. Если второй запрос не удался, пример возвращает ошибку всего endpoint, а не выдаёт неполные данные за полный профиль.
+
+Здесь приведения `as User` и `as Post[]` предполагают известный контракт; они не проверяют JSON. В промышленном коде добавь валидацию, если ответ нельзя считать надёжным.
+
+Обе операции формируют **одну запись кэша getProfile(id)**. Они не создают автоматически отдельные кэш-записи `getUser` и `getPosts`. Если частям профиля нужны независимые подписки и обновления, отдельные endpoints могут оказаться удобнее.
+
+`queryFn` и `query` — альтернативные способы описать выполнение endpoint. Для `queryFn` возвращай уже готовые данные: `transformResponse` применяется к endpoint с `query`, а необходимые преобразования здесь выполняй внутри `queryFn`.
+
+**Задание:** представь, что пользователь загрузился, а запрос его записей вернул 500. Запустится ли успешное сохранение профиля в кэш? Нет: этот пример вернёт `{ error }`. Чтобы показывать частичный успех, нужно отдельно спроектировать форму результата и интерфейс.
+
+## Эксперимент
+
+Включи ошибку mutation и проверь, что UI сообщает о неуспехе, а серверные данные не изменяются. Открой журнал: транспортное событие отдельно от состояния query-кэша.
+
+## Что запомнить
+
+Общие параметры транспорта — в baseQuery, преобразование конкретного ответа — в endpoint, отображение ошибки — в компоненте.
+
+## Лаборатория
+
+<QueryLab client:load />
+
+## Самопроверка
+
+<Quiz {...{"question": "Что получает query-кэш после transformResponse?", "options": ["Исходную оболочку и только её", "Результат transformResponse", "Функцию преобразования"], "correct": 1, "explanation": "Компоненты читают уже преобразованные данные. Проверка реального формата ответа остаётся отдельной задачей."}} client:load />
+
+## Официальные источники
+
+- [customizing-queries](https://redux.js.org/toolkit/rtk-query/usage/customizing-queries)
+- [fetchBaseQuery](https://redux.js.org/toolkit/rtk-query/api/fetchBaseQuery)
+
+Самостоятельное объяснение на основе официальной документации. Источники проверены 16 ноября 2026 года.
